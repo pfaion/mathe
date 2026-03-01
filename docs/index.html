@@ -147,6 +147,7 @@
             const questionWrap = document.getElementById("questionWrap");
 
             answerInput.value = "";
+            answerInput.disabled = false;
             answerInput.focus();
 
             questionWrap.classList.remove("is-correct", "is-wrong");
@@ -184,14 +185,14 @@
                         <mrow>
                             ${expression}
                             <mo>=</mo>
-                            ${mathNumberNode(userValue)}
-                            <mo>≠</mo>
                             ${mathNumberNode(correctResult)}
+                            <mo>≠</mo>
+                            ${mathNumberNode(userValue)}
                         </mrow>
                     </math>
                 `;
             }
-            answerInput.value = "";
+            answerInput.disabled = true;
             actionButton.textContent = "Nächste Aufgabe";
             actionButton.className = "btn btn-success btn-lg w-100 action-btn";
             state.waitingForAnswer = false;
@@ -227,11 +228,21 @@
             handleAction();
         }
 
+        function onGlobalKeydown(event) {
+            if (event.key !== "Enter" || state.waitingForAnswer) {
+                return;
+            }
+
+            event.preventDefault();
+            handleAction();
+        }
+
         function main() {
             const form = document.getElementById("trainerForm");
             const answerInput = document.getElementById("answer");
 
             form.addEventListener("submit", onFormSubmit);
+            document.addEventListener("keydown", onGlobalKeydown);
             answerInput.addEventListener("focus", () => {
                 setTimeout(keepCardVisible, 220);
             });
