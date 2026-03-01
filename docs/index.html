@@ -29,13 +29,18 @@
             border: 1px solid #dee2e6;
         }
 
-        .question-wrap math {
-            font-size: clamp(1.9rem, 8vw, 2.4rem);
+        .question-wrap.is-correct {
+            background-color: var(--bs-success-bg-subtle);
+            border-color: var(--bs-success-border-subtle);
         }
 
-        .status {
-            min-height: 58px;
-            margin-bottom: 0;
+        .question-wrap.is-wrong {
+            background-color: var(--bs-danger-bg-subtle);
+            border-color: var(--bs-danger-border-subtle);
+        }
+
+        .question-wrap math {
+            font-size: clamp(1.9rem, 8vw, 2.4rem);
         }
 
         .action-btn {
@@ -44,21 +49,25 @@
         }
 
         @media (max-width: 576px) {
+            body {
+                min-height: 100dvh;
+                display: block;
+            }
+
+            main.container {
+                padding-top: 0.75rem !important;
+                padding-bottom: 0.75rem !important;
+            }
+
             .card-body {
                 padding: 1.25rem !important;
             }
 
-            .status {
-                min-height: 68px;
-            }
         }
     </style>
     <script>
         const state = {
-            a: 0,
-            b: 0,
-            op: "+",
-            answer: 0,
+            currentProblem: null,
             waitingForAnswer: true,
         };
 
@@ -73,64 +82,116 @@
             return `<mn>${number}</mn>`;
         }
 
+        class SumProblem {
+            constructor() {
+                this.a = randomIntBetween(-30, 30);
+                this.b = randomIntBetween(-30, 30);
+            }
+
+            renderExpression() {
+                return `
+                    ${mathNumberNode(this.a)}
+                    ${this.b >= 0 ? '<mo>+</mo>' : ''}
+                    ${mathNumberNode(this.b)}
+                `;
+            }
+
+            renderMathML() {
+                return `<math display="block"><mrow>${this.renderExpression()}</mrow></math>`;
+            }
+
+            evaluate() {
+                return this.a + this.b;
+            }
+        }
+
+        class ProductProblem {
+            constructor() {
+                this.a = randomIntBetween(-10, 10);
+                this.b = randomIntBetween(-10, 10);
+            }
+
+            renderExpression() {
+                return `
+                    ${mathNumberNode(this.a)}
+                    <mo>⋅</mo>
+                    ${mathNumberNode(this.b)}
+                `;
+            }
+
+            renderMathML() {
+                return `<math display="block"><mrow>${this.renderExpression()}</mrow></math>`;
+            }
+
+            evaluate() {
+                return this.a * this.b;
+            }
+        }
+
         function createQuestion() {
-            state.a = randomIntBetween(-10, 10);
-            state.b = randomIntBetween(-10, 10);
-            state.op = Math.random() < 0.5 ? "+" : "*";
-            state.answer = state.op === "+" ? state.a + state.b : state.a * state.b;
+            const ProblemTypes = [SumProblem, ProductProblem];
+            const ProblemType = ProblemTypes[Math.floor(Math.random() * ProblemTypes.length)];
+
+            state.currentProblem = new ProblemType();
             state.waitingForAnswer = true;
         }
 
         function renderQuestion() {
             const questionElement = document.getElementById("question");
-            const opNode = state.op === "+" ? "+" : "⋅";
-
-            questionElement.innerHTML = `
-                <math display="block">
-                    <mrow>
-                        ${mathNumberNode(state.a)}
-                        <mo>${opNode}</mo>
-                        ${mathNumberNode(state.b)}
-                    </mrow>
-                </math>
-            `;
+            questionElement.innerHTML = state.currentProblem.renderMathML();
         }
 
         function resetUiForQuestion() {
             const answerInput = document.getElementById("answer");
-            const status = document.getElementById("status");
             const actionButton = document.getElementById("actionButton");
+            const questionWrap = document.getElementById("questionWrap");
 
             answerInput.value = "";
-            answerInput.readOnly = false;
             answerInput.focus();
 
-            status.className = "alert status alert-secondary";
-            status.textContent = "Antwort eingeben und Prüfen drücken.";
+            questionWrap.classList.remove("is-correct", "is-wrong");
             actionButton.textContent = "Prüfen";
             actionButton.className = "btn btn-primary btn-lg w-100 action-btn";
         }
 
         function evaluateAnswer() {
             const answerInput = document.getElementById("answer");
-            const status = document.getElementById("status");
             const actionButton = document.getElementById("actionButton");
+            const questionElement = document.getElementById("question");
+            const questionWrap = document.getElementById("questionWrap");
             const userValue = Number(answerInput.value.trim());
-            const isCorrect = Number.isFinite(userValue) && userValue === state.answer;
+            const correctResult = state.currentProblem.evaluate();
+            const isCorrect = Number.isFinite(userValue) && userValue === correctResult;
+            const expression = state.currentProblem.renderExpression();
 
             if (isCorrect) {
-                status.className = "alert status alert-success";
-                status.textContent = `Richtig! Ergebnis: ${state.answer}. Nächste Aufgabe drücken.`;
+                questionWrap.classList.remove("is-wrong");
+                questionWrap.classList.add("is-correct");
+                questionElement.innerHTML = `
+                    <math display="block">
+                        <mrow>
+                            ${expression}
+                            <mo>=</mo>
+                            ${mathNumberNode(correctResult)}
+                        </mrow>
+                    </math>
+                `;
             } else {
-                status.className = "alert status alert-danger";
-                status.textContent = `Falsch. Richtig wäre: ${state.answer}. Nächste Aufgabe drücken.`;
-                if ("vibrate" in navigator) {
-                    navigator.vibrate(120);
-                }
+                questionWrap.classList.remove("is-correct");
+                questionWrap.classList.add("is-wrong");
+                questionElement.innerHTML = `
+                    <math display="block">
+                        <mrow>
+                            ${expression}
+                            <mo>=</mo>
+                            ${mathNumberNode(userValue)}
+                            <mo>≠</mo>
+                            ${mathNumberNode(correctResult)}
+                        </mrow>
+                    </math>
+                `;
             }
-
-            answerInput.readOnly = true;
-            answerInput.blur();
+            answerInput.value = "";
             actionButton.textContent = "Nächste Aufgabe";
             actionButton.className = "btn btn-success btn-lg w-100 action-btn";
             state.waitingForAnswer = false;
@@ -140,6 +201,17 @@
             createQuestion();
             renderQuestion();
             resetUiForQuestion();
+        }
+
+        function keepCardVisible() {
+            if (window.innerWidth > 576) {
+                return;
+            }
+
+            const card = document.querySelector(".trainer-card");
+            if (card) {
+                card.scrollIntoView({ block: "start", behavior: "smooth" });
+            }
         }
 
         function handleAction() {
@@ -157,8 +229,17 @@
 
         function main() {
             const form = document.getElementById("trainerForm");
+            const answerInput = document.getElementById("answer");
 
             form.addEventListener("submit", onFormSubmit);
+            answerInput.addEventListener("focus", () => {
+                setTimeout(keepCardVisible, 220);
+            });
+
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener("resize", keepCardVisible);
+            }
+
             nextQuestion();
         }
 
@@ -172,7 +253,7 @@
             <div class="card-body p-4 p-md-5">
                 <h1 class="h2 text-center mb-2">Mathe Training</h1>
 
-                <div class="question-wrap mb-4">
+                <div id="questionWrap" class="question-wrap mb-4">
                     <div id="question" aria-live="polite"></div>
                 </div>
 
@@ -193,9 +274,6 @@
                     </button>
                 </form>
 
-                <div id="status" class="alert status alert-secondary" role="status" aria-live="polite">
-                    Antwort eingeben und Prüfen drücken.
-                </div>
             </div>
         </div>
     </main>
